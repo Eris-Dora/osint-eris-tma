@@ -4,16 +4,16 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
 class Settings(BaseSettings):
-    """Глобальные настройки бэкенда, бота и CORS."""
+    """Глобальные настройки бэкенда, бота, Gemini AI и CORS."""
 
-    BOT_TOKEN: str = "8532736583:AAGwUbWDe5fV832v4giiHI2XYHBafmMVoRA"
+    BOT_TOKEN: str = ""
     WEBAPP_URL: str = "https://telegram.org"
+    GEMINI_API_KEY: str = ""
     PORT: int = 8000
     CORS_ORIGINS: str = "*"
 
-    # Таймауты и лимиты для парсеров
     HTTP_TIMEOUT: float = 12.0
-    MAX_RESULTS_PER_SOURCE: int = 12
+    MAX_RESULTS_PER_SOURCE: int = 15
 
     model_config = SettingsConfigDict(
         env_file=os.path.join(os.path.dirname(os.path.dirname(__file__)), ".env"),
