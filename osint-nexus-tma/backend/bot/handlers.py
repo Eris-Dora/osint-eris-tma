@@ -1,4 +1,5 @@
 import html
+import re
 from aiogram import Router, F, types
 from aiogram.filters import CommandStart, Command
 from services.aggregator import run_full_osint_search
@@ -9,12 +10,29 @@ from .keyboards import get_main_webapp_keyboard, get_model_selector_keyboard
 
 router = Router()
 
+# Регулярное выражение, которое ловит фразы вроде "поиск по Deni Von Raide", "найди @durov", "пробей Иван Иванов"
+SEARCH_INTENT_REGEX = re.compile(
+    r"(?:поиск\s+по|найди\s+инфу\s+про|найди\s+про|найди|пробей|исследуй|что\s+нашел\s+поиск\s+по)\s+(.+)$",
+    re.IGNORECASE,
+)
+
 CHAT_TRIGGERS = (
     "привет", "здравствуй", "кто ты", "что ты", "как дела", "помоги",
     "расскажи", "объясни", "почему", "зачем", "как найти", "что значит",
     "а кто", "а что", "а где", "а как", "подскажи", "можешь", "умеешь",
-    "спасибо", "понял", "круто", "хорошо", "давай", "сделай", "проанализируй"
+    "спасибо", "понял", "круто", "хорошо", "давай", "сделай", "проанализируй",
+    "и что", "что ты"
 )
+
+
+def extract_search_target(text: str) -> str | None:
+    """Если пользователь написал 'привет опиши что нашел поиск по Deni Von Raide', достает 'Deni Von Raide'."""
+    match = SEARCH_INTENT_REGEX.search(text.strip())
+    if match:
+        target = match.group(1).strip(" .,!?\"'«»")
+        if len(target) >= 2:
+            return target
+    return None
 
 
 def is_conversational_message(text: str) -> bool:
@@ -39,7 +57,6 @@ async def cmd_start(message: types.Message) -> None:
 
 @router.message(Command("model"))
 async def cmd_model(message: types.Message) -> None:
-    """Команда /model для вызова меню переключения нейросети."""
     user_id = message.from_user.id if message.from_user else 0
     current_key = LLMRouter.get_user_model_key(user_id)
     current_info = AVAILABLE_MODELS[current_key]
@@ -98,7 +115,7 @@ async def cmd_help(message: types.Message) -> None:
         text=(
             f"{HELP_TEXT}\n\n"
             "💬 <b>Команды ИИ-чата:</b>\n"
-            "• <code>/model</code> — переключить ИИ-модель (Groq Llama 70B / Qwen / Gemini) прямо во время разговора.\n"
+            "• <code>/model</code> — переключить ИИ-модель (Groq / DeepSeek / Gemini) прямо во время разговора.\n"
             "• <code>/search запрос</code> — принудительный OSINT-сканер по фразе.\n"
             "• <code>/clear</code> — очистить память диалога."
         ),
@@ -118,7 +135,7 @@ async def cmd_clear(message: types.Message) -> None:
 async def cmd_force_search(message: types.Message) -> None:
     raw_text = (message.text or "").replace("/search", "", 1).strip()
     if len(raw_text) < 2:
-        await message.answer("🔎 Укажите запрос, например: <code>/search @durov</code>", parse_mode="HTML")
+        await message.answer("🔎 Укажите запрос, например: <code>/search Deni Von Raide</code>", parse_mode="HTML")
         return
     await _run_osint_and_reply(message, raw_text)
 
@@ -132,6 +149,13 @@ async def handle_text_or_chat(message: types.Message) -> None:
         await message.answer("⚠️ Напишите чуть подробнее.")
         return
 
+    # 1. Проверяем, не просит ли пользователь внутри фразы сделать поиск ("...поиск по Deni Von Raide")
+    extracted_target = extract_search_target(text)
+    if extracted_target:
+        await _run_osint_and_reply(message, extracted_target)
+        return
+
+    # 2. Если это обычное сообщение для диалога — общаемся через выбранную ИИ-модель
     if is_conversational_message(text):
         thinking_msg = await message.answer("💭 <i>Генерирую ответ...</i>", parse_mode="HTML")
         ai_data = await GeminiOSINTAnalyst.chat_with_user(user_id=user_id, user_message=text)
@@ -145,6 +169,7 @@ async def handle_text_or_chat(message: types.Message) -> None:
         )
         return
 
+    # 3. Короткий запрос (никнейм, ФИО до 3 слов, домен, email) — сразу запускаем полный OSINT-поиск
     await _run_osint_and_reply(message, text)
 
 
@@ -158,12 +183,16 @@ async def _run_osint_and_reply(message: types.Message, query: str) -> None:
     data = await run_full_osint_search(query=query, category_filter="all")
     report_html = format_chat_search_results(data)
 
-    if data.get("ai_summary"):
-        GeminiOSINTAnalyst.save_to_memory(
-            user_id,
-            "Система OSINT (результат последнего поиска)",
-            f"Объект: {query}\nДосье: {data['ai_summary']}",
-        )
+    # Сохраняем и само ИИ-досье, и список найденных ссылок в память чата!
+    top_links = "\n".join(
+        f"- {r.get('title')} ({r.get('url')}): {r.get('snippet', '')[:100]}"
+        for r in data.get("results", [])[:10]
+    )
+    GeminiOSINTAnalyst.save_to_memory(
+        user_id,
+        "Система OSINT (результаты поиска)",
+        f"Запрос: {query}\nНайдено ссылок: {data.get('counts', {}).get('all', 0)}\nДосье: {data.get('ai_summary', '')}\nТоп ссылок:\n{top_links}",
+    )
 
     await status_msg.edit_text(
         text=report_html,
