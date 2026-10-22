@@ -419,3 +419,28 @@ body {
   from { opacity: 0; transform: translateY(4px); }
   to { opacity: 1; transform: translateY(0); }
 }
+
+/* AI Dossier Card */
+.ai-dossier-card {
+  background: linear-gradient(145deg, rgba(0, 229, 255, 0.1), rgba(16, 185, 129, 0.08));
+  border: 1px solid var(--accent);
+  border-radius: var(--radius-lg);
+  padding: 14px;
+  margin-bottom: 12px;
+  animation: fadeIn 0.25s ease;
+}
+
+.ai-dossier-header {
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0.7px;
+  color: var(--accent);
+  margin-bottom: 8px;
+}
+
+.ai-dossier-body {
+  font-size: 13px;
+  line-height: 1.5;
+  color: var(--text-primary);
+  white-space: pre-line;
+}
