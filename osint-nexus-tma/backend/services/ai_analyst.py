@@ -11,14 +11,14 @@ CHAT_MEMORY: Dict[int, List[Dict[str, str]]] = {}
 
 class GeminiOSINTAnalyst:
     """
-    Универсальный ИИ-модуль:
+    Универсальный ИИ-модуль на базе актуальной модели Gemini 3.0 Flash
     1) Поддерживает ключи AQ... (Google Cloud Vertex AI Express)
     2) Поддерживает ключи AIza... (Google AI Studio Gemini)
     3) Поддерживает ключи gsk_... (Бесплатный Groq Cloud API)
     """
 
-    AISTUDIO_URL = "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent"
-    VERTEX_URL = "https://aiplatform.googleapis.com/v1/publishers/google/models/gemini-2.5-flash:generateContent"
+    AISTUDIO_URL = "https://generativelanguage.googleapis.com/v1beta/models/gemini-3.0-flash:generateContent"
+    VERTEX_URL = "https://aiplatform.googleapis.com/v1/publishers/google/models/gemini-3.0-flash:generateContent"
     GROQ_URL = "https://api.groq.com/openai/v1/chat/completions"
 
     @classmethod
@@ -76,7 +76,7 @@ class GeminiOSINTAnalyst:
 
         try:
             async with httpx.AsyncClient(timeout=20.0) as client:
-                # 1. Пробуем основной эндпоинт с google_search
+                # 1. Пробуем основной эндпоинт (gemini-3.0-flash) с google_search
                 resp = await client.post(f"{base_url}?key={api_key}", json=payload)
 
                 # 2. Если с google_search не прошло, пробуем без tools
@@ -84,7 +84,7 @@ class GeminiOSINTAnalyst:
                     payload.pop("tools", None)
                     resp = await client.post(f"{base_url}?key={api_key}", json=payload)
 
-                # 3. Если ключ AQ... вдруг требует AIStudio URL (или наоборот), пробуем альтернативный URL
+                # 3. Если нужен альтернативный эндпоинт (AIStudio <-> Vertex)
                 if resp.status_code != 200:
                     alt_url = cls.AISTUDIO_URL if base_url == cls.VERTEX_URL else cls.VERTEX_URL
                     resp = await client.post(f"{alt_url}?key={api_key}", json=payload)
