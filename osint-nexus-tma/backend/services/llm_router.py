@@ -9,43 +9,37 @@ logger = logging.getLogger(__name__)
 # Выбранная модель для каждого пользователя (user_id -> model_key)
 USER_MODELS: Dict[int, str] = {}
 
-# Полный каталог моделей для переключения кнопками в Telegram
+# Актуальный каталог моделей (Groq + Google Gemini + OpenRouter)
 AVAILABLE_MODELS: Dict[str, Dict[str, str]] = {
-    "groq_llama70b": {
+    "groq_gpt_oss_120b": {
         "provider": "groq",
-        "model_id": "llama-3.3-70b-versatile",
-        "title": "⚡ Groq · Llama 3.3 70B",
-        "desc": "Флагманская универсальная модель Meta",
+        "model_id": "openai/gpt-oss-120b",
+        "title": "⚡ Groq · GPT-OSS 120B",
+        "desc": "Новейшая флагманская модель 120B на чипах Groq",
     },
-    "groq_deepseek_r1": {
+    "groq_compound": {
         "provider": "groq",
-        "model_id": "deepseek-r1-distill-llama-70b",
-        "title": "🐋 Groq · DeepSeek R1 70B",
-        "desc": "Глубокое рассуждение и поиск скрытых связей",
+        "model_id": "groq/compound",
+        "title": "🧠 Groq · Compound AI",
+        "desc": "Агентная система Groq для глубокого анализа",
+    },
+    "groq_kimi_k2": {
+        "provider": "groq",
+        "model_id": "moonshotai/kimi-k2-instruct",
+        "title": "🌙 Groq · Kimi K2 Instruct",
+        "desc": "Мощная аналитическая модель с отличным русским языком",
     },
     "groq_llama4_scout": {
         "provider": "groq",
         "model_id": "meta-llama/llama-4-scout-17b-16e-instruct",
         "title": "🦙 Groq · Llama 4 Scout 17B",
-        "desc": "Свежая быстрая модель поколения Llama 4",
+        "desc": "Быстрая модель поколения Llama 4",
     },
-    "groq_qwen": {
+    "groq_gpt_oss_20b": {
         "provider": "groq",
-        "model_id": "qwen-qwq-32b",
-        "title": "🧠 Groq · Qwen QwQ 32B",
-        "desc": "Аналитическая модель с цепочкой мыслей",
-    },
-    "groq_gemma2": {
-        "provider": "groq",
-        "model_id": "gemma2-9b-it",
-        "title": "💎 Groq · Google Gemma 2 9B",
-        "desc": "Компактная и точная модель от Google на чипах Groq",
-    },
-    "groq_fast": {
-        "provider": "groq",
-        "model_id": "llama-3.1-8b-instant",
-        "title": "🚀 Groq · Llama 3.1 8B Instant",
-        "desc": "Мгновенные ответы за 0.2 сек",
+        "model_id": "openai/gpt-oss-20b",
+        "title": "🚀 Groq · GPT-OSS 20B Instant",
+        "desc": "Мгновенные ответы за доли секунды",
     },
     "gemini_flash": {
         "provider": "gemini",
@@ -57,17 +51,20 @@ AVAILABLE_MODELS: Dict[str, Dict[str, str]] = {
         "provider": "openrouter",
         "model_id": "deepseek/deepseek-chat-v3-0324:free",
         "title": "🌌 OpenRouter · DeepSeek V3 (Free)",
-        "desc": "Полная версия DeepSeek V3 671B (нужен OPENROUTER_API_KEY)",
+        "desc": "Полная версия DeepSeek V3 (нужен OPENROUTER_API_KEY)",
     },
 }
 
 
 class LLMRouter:
-    """Отвечает за сетевые запросы к Groq, Google Gemini и OpenRouter API."""
+    """Отвечает за сетевые запросы к Groq, Google Gemini и OpenRouter API с авто-обнаружением моделей."""
 
     GROQ_URL = "https://api.groq.com/openai/v1/chat/completions"
+    GROQ_MODELS_URL = "https://api.groq.com/openai/v1/models"
     OPENROUTER_URL = "https://openrouter.ai/api/v1/chat/completions"
+
     _working_gemini_endpoint: str | None = None
+    _cached_groq_models: List[str] = []
 
     CANDIDATE_GEMINI_MODELS = [
         "gemini-2.0-flash",
@@ -87,7 +84,7 @@ class LLMRouter:
         if user_id in USER_MODELS and USER_MODELS[user_id] in AVAILABLE_MODELS:
             return USER_MODELS[user_id]
         if cls.get_groq_key():
-            return "groq_llama70b"
+            return "groq_gpt_oss_120b"
         return "gemini_flash"
 
     @classmethod
@@ -95,7 +92,7 @@ class LLMRouter:
         if model_key in AVAILABLE_MODELS:
             USER_MODELS[user_id] = model_key
             return AVAILABLE_MODELS[model_key]
-        return AVAILABLE_MODELS["groq_llama70b"]
+        return AVAILABLE_MODELS["groq_gpt_oss_120b"]
 
     @classmethod
     def get_groq_key(cls) -> str:
@@ -117,12 +114,12 @@ class LLMRouter:
         cls, prompt: str, user_id: int = 0, use_search: bool = True, temp: float = 0.4
     ) -> Dict[str, Any]:
         model_key = cls.get_user_model_key(user_id)
-        model_info = AVAILABLE_MODELS.get(model_key, AVAILABLE_MODELS["groq_llama70b"])
+        model_info = AVAILABLE_MODELS.get(model_key, AVAILABLE_MODELS["groq_gpt_oss_120b"])
         provider = model_info["provider"]
 
         if provider == "groq":
             res = await cls._call_groq(model_info["model_id"], prompt, temp)
-            res["model_title"] = model_info["title"]
+            res["model_title"] = res.get("used_model_title") or model_info["title"]
             return res
 
         if provider == "openrouter":
@@ -135,6 +132,43 @@ class LLMRouter:
         return res
 
     @classmethod
+    async def _discover_groq_models(cls, client: httpx.AsyncClient, groq_key: str) -> List[str]:
+        """Запрашивает у самого сервера Groq список реально доступных для этого ключа текстовых моделей."""
+        if cls._cached_groq_models:
+            return cls._cached_groq_models
+
+        discovered: List[str] = []
+        try:
+            resp = await client.get(
+                cls.GROQ_MODELS_URL,
+                headers={"Authorization": f"Bearer {groq_key}"},
+            )
+            if resp.status_code == 200:
+                for m in resp.json().get("data", []):
+                    m_id = m.get("id", "")
+                    low = m_id.lower()
+                    # Отсекаем аудио-модели (whisper, tts) и системные гарды (guard/safeguard)
+                    if any(skip in low for skip in ("whisper", "tts", "playai", "guard", "orpheus")):
+                        continue
+                    discovered.append(m_id)
+
+                if discovered:
+                    # Приоритет самым мощным моделям (120b, 70b, compound, kimi, llama-4, qwen)
+                    def _priority(name: str) -> int:
+                        n = name.lower()
+                        if "120b" in n or "70b" in n:
+                            return 0
+                        if "compound" in n or "kimi" in n or "llama-4" in n or "qwen" in n:
+                            return 1
+                        return 2
+
+                    discovered.sort(key=lambda x: (_priority(x), x))
+                    cls._cached_groq_models = discovered
+        except Exception as exc:
+            logger.warning(f"Не удалось получить список моделей Groq: {exc}")
+        return discovered
+
+    @classmethod
     async def _call_groq(cls, model_id: str, prompt: str, temp: float = 0.4) -> Dict[str, Any]:
         groq_key = cls.get_groq_key()
         if not groq_key:
@@ -143,11 +177,15 @@ class LLMRouter:
                 "grounded": [],
                 "error": "Ключ GROQ_API_KEY (gsk_...) не задан в настройках Render.",
             }
+
+        headers = {"Authorization": f"Bearer {groq_key}", "Content-Type": "application/json"}
+
         try:
             async with httpx.AsyncClient(timeout=25.0) as client:
+                # 1. Пробуем запрошенную пользователем модель
                 resp = await client.post(
                     cls.GROQ_URL,
-                    headers={"Authorization": f"Bearer {groq_key}", "Content-Type": "application/json"},
+                    headers=headers,
                     json={
                         "model": model_id,
                         "messages": [{"role": "user", "content": prompt}],
@@ -155,21 +193,39 @@ class LLMRouter:
                         "max_tokens": 2048,
                     },
                 )
-                if resp.status_code != 200 and model_id != "llama-3.3-70b-versatile":
-                    resp = await client.post(
+                if resp.status_code == 200:
+                    raw_text = resp.json()["choices"][0]["message"]["content"]
+                    return {"text": cls._clean_think_tags(raw_text), "grounded": [], "error": ""}
+
+                # 2. Если модель вернула 404 (устарела или недоступна) — запрашиваем живой список у Groq!
+                cls._cached_groq_models = []
+                available = await cls._discover_groq_models(client, groq_key)
+
+                last_err = f"Groq HTTP {resp.status_code}: {resp.text[:160]}"
+                for fallback_model in available:
+                    if fallback_model == model_id:
+                        continue
+                    resp_fb = await client.post(
                         cls.GROQ_URL,
-                        headers={"Authorization": f"Bearer {groq_key}", "Content-Type": "application/json"},
+                        headers=headers,
                         json={
-                            "model": "llama-3.3-70b-versatile",
+                            "model": fallback_model,
                             "messages": [{"role": "user", "content": prompt}],
                             "temperature": temp,
                             "max_tokens": 2048,
                         },
                     )
-                if resp.status_code == 200:
-                    raw_text = resp.json()["choices"][0]["message"]["content"]
-                    return {"text": cls._clean_think_tags(raw_text), "grounded": [], "error": ""}
-                return {"text": "", "grounded": [], "error": f"Groq HTTP {resp.status_code}: {resp.text[:160]}"}
+                    if resp_fb.status_code == 200:
+                        raw_text = resp_fb.json()["choices"][0]["message"]["content"]
+                        return {
+                            "text": cls._clean_think_tags(raw_text),
+                            "grounded": [],
+                            "error": "",
+                            "used_model_title": f"⚡ Groq · {fallback_model}",
+                        }
+                    last_err = f"Groq HTTP {resp_fb.status_code} ({fallback_model}): {resp_fb.text[:140]}"
+
+                return {"text": "", "grounded": [], "error": last_err}
         except Exception as exc:
             return {"text": "", "grounded": [], "error": str(exc)}
 
@@ -178,7 +234,7 @@ class LLMRouter:
         or_key = settings.OPENROUTER_API_KEY.strip()
         if not or_key:
             if cls.get_groq_key():
-                return await cls._call_groq("deepseek-r1-distill-llama-70b", prompt, temp)
+                return await cls._call_groq("openai/gpt-oss-120b", prompt, temp)
             return {
                 "text": "",
                 "grounded": [],
@@ -217,7 +273,6 @@ class LLMRouter:
                             if clean not in discovered:
                                 discovered.append(clean)
                     if discovered:
-                        # Приоритет быстрым моделям без задержек на thinking-блок
                         discovered.sort(
                             key=lambda x: (
                                 0 if "2.0-flash" in x else (1 if "flash-lite" in x else (2 if "flash" in x else 3)),
@@ -234,7 +289,7 @@ class LLMRouter:
         api_key = cls.get_gemini_key()
         if not api_key:
             if cls.get_groq_key():
-                return await cls._call_groq("llama-3.3-70b-versatile", prompt, temp)
+                return await cls._call_groq("openai/gpt-oss-120b", prompt, temp)
             return {"text": "", "grounded": [], "error": "Ключ GEMINI_API_KEY не задан в Render."}
 
         base_payload: Dict[str, Any] = {
@@ -283,7 +338,7 @@ class LLMRouter:
                         last_error = f"HTTP {resp.status_code} ({model_name}): {resp.text[:140]}"
 
                 if cls.get_groq_key():
-                    return await cls._call_groq("llama-3.3-70b-versatile", prompt, temp)
+                    return await cls._call_groq("openai/gpt-oss-120b", prompt, temp)
 
                 return {"text": "", "grounded": [], "error": last_error}
         except Exception as exc:
