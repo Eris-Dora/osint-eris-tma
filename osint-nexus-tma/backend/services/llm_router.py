@@ -70,15 +70,15 @@ class LLMRouter:
     _working_gemini_endpoint: str | None = None
 
     CANDIDATE_GEMINI_MODELS = [
-        "gemini-2.5-flash-preview-05-20",
-        "gemini-2.5-flash-lite",
         "gemini-2.0-flash",
+        "gemini-2.5-flash-lite",
+        "gemini-2.5-flash-preview-05-20",
         "gemini-1.5-flash-latest",
     ]
 
     @classmethod
     def _clean_think_tags(cls, text: str) -> str:
-        """Убирает технические теги <think>...</think> у рассуждающих моделей (DeepSeek R1 / Qwen QwQ)."""
+        """Убирает технические теги <think>...</think> у рассуждающих моделей."""
         cleaned = re.sub(r"<think>.*?</think>", "", text, flags=re.DOTALL).strip()
         return cleaned if cleaned else text.strip()
 
@@ -152,7 +152,7 @@ class LLMRouter:
                         "model": model_id,
                         "messages": [{"role": "user", "content": prompt}],
                         "temperature": temp,
-                        "max_tokens": 1200,
+                        "max_tokens": 2048,
                     },
                 )
                 if resp.status_code != 200 and model_id != "llama-3.3-70b-versatile":
@@ -163,7 +163,7 @@ class LLMRouter:
                             "model": "llama-3.3-70b-versatile",
                             "messages": [{"role": "user", "content": prompt}],
                             "temperature": temp,
-                            "max_tokens": 1200,
+                            "max_tokens": 2048,
                         },
                     )
                 if resp.status_code == 200:
@@ -217,7 +217,13 @@ class LLMRouter:
                             if clean not in discovered:
                                 discovered.append(clean)
                     if discovered:
-                        discovered.sort(key=lambda x: (0 if "flash" in x else 1, x))
+                        # Приоритет быстрым моделям без задержек на thinking-блок
+                        discovered.sort(
+                            key=lambda x: (
+                                0 if "2.0-flash" in x else (1 if "flash-lite" in x else (2 if "flash" in x else 3)),
+                                x,
+                            )
+                        )
                         return discovered
             except Exception:
                 pass
@@ -233,11 +239,14 @@ class LLMRouter:
 
         base_payload: Dict[str, Any] = {
             "contents": [{"role": "user", "parts": [{"text": prompt}]}],
-            "generationConfig": {"temperature": temp, "maxOutputTokens": 850},
+            "generationConfig": {
+                "temperature": temp,
+                "maxOutputTokens": 4096,
+            },
         }
 
         try:
-            async with httpx.AsyncClient(timeout=22.0) as client:
+            async with httpx.AsyncClient(timeout=25.0) as client:
                 if cls._working_gemini_endpoint:
                     resp = await client.post(cls._working_gemini_endpoint, json=base_payload)
                     if resp.status_code == 200:
