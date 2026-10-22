@@ -6,7 +6,7 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 class Settings(BaseSettings):
     """Глобальные настройки бэкенда, бота и CORS."""
 
-    BOT_TOKEN: str = ""
+    BOT_TOKEN: str = "8532736583:AAGwUbWDe5fV832v4giiHI2XYHBafmMVoRA"
     WEBAPP_URL: str = "https://telegram.org"
     PORT: int = 8000
     CORS_ORIGINS: str = "*"
