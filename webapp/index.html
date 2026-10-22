@@ -1,0 +1,126 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+  <title>OSINT Nexus // Deep Search</title>
+  <!-- Официальный SDK Telegram Mini Apps -->
+  <script src="https://telegram.org/js/telegram-web-app.js"></script>
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+  <div class="app-shell">
+    <!-- Верхняя панель дашборда -->
+    <header class="topbar">
+      <div class="brand">
+        <span class="pulse-dot" id="apiStatusDot"></span>
+        <div>
+          <h1 class="brand-title">OSINT NEXUS</h1>
+          <p class="brand-subtitle">Deep Web &amp; Mentions Intelligence</p>
+        </div>
+      </div>
+      <button class="icon-btn" id="settingsToggleBtn" type="button" aria-label="Настройки API">
+        ⚙️
+      </button>
+    </header>
+
+    <!-- Выдвижная панель настройки адреса бэкенда -->
+    <section class="api-panel hidden" id="apiConfigPanel">
+      <label class="api-label" for="apiBaseUrlInput">Backend API URL (Render / Koyeb / Local):</label>
+      <div class="api-input-row">
+        <input
+          type="url"
+          id="apiBaseUrlInput"
+          placeholder="https://osint-nexus-backend.onrender.com"
+          autocomplete="off"
+        />
+        <button class="save-btn" id="saveApiUrlBtn" type="button">Сохранить</button>
+      </div>
+      <p class="api-hint" id="apiHealthStatus">Статус узла: не проверен</p>
+    </section>
+
+    <!-- Поисковая строка с быстрыми тегами -->
+    <section class="search-section">
+      <form id="searchForm" class="search-bar">
+        <span class="search-icon">🔎</span>
+        <input
+          type="text"
+          id="searchInput"
+          placeholder="Никнейм (@user), ФИО, домен, email, телефон..."
+          autocomplete="off"
+          required
+        />
+        <button type="button" class="clear-btn hidden" id="clearInputBtn" aria-label="Очистить">✕</button>
+        <button type="submit" class="submit-btn" id="searchSubmitBtn">Найти</button>
+      </form>
+
+      <div class="quick-chips">
+        <button type="button" class="chip" data-sample="@durov">@durov</button>
+        <button type="button" class="chip" data-sample="telegram.org">telegram.org</button>
+        <button type="button" class="chip" data-sample="Vitalik Buterin">Vitalik Buterin</button>
+      </div>
+    </section>
+
+    <!-- Вкладки категорий с динамическими счетчиками -->
+    <nav class="tabs-bar" id="categoryTabs">
+      <button type="button" class="tab-btn active" data-category="all">
+        <span>Все</span>
+        <span class="tab-badge" id="count-all">0</span>
+      </button>
+      <button type="button" class="tab-btn" data-category="mentions">
+        <span>Упоминания</span>
+        <span class="tab-badge" id="count-mentions">0</span>
+      </button>
+      <button type="button" class="tab-btn" data-category="socials">
+        <span>Соцсети</span>
+        <span class="tab-badge" id="count-socials">0</span>
+      </button>
+      <button type="button" class="tab-btn" data-category="forums">
+        <span>Форумы/Статьи</span>
+        <span class="tab-badge" id="count-forums">0</span>
+      </button>
+    </nav>
+
+    <!-- Строка телеметрии / мета-информации о поиске -->
+    <div class="telemetry-bar" id="telemetryBar">
+      <span id="statusMessage">Готов к глубокому поиску по открытым источникам</span>
+      <span id="elapsedBadge" class="elapsed-badge hidden">0.0s</span>
+    </div>
+
+    <!-- Контейнер скелетонов при загрузке -->
+    <section class="results-container hidden" id="skeletonContainer">
+      <div class="skeleton-card">
+        <div class="sk-line sk-badge"></div>
+        <div class="sk-line sk-title"></div>
+        <div class="sk-line sk-text"></div>
+        <div class="sk-line sk-text short"></div>
+      </div>
+      <div class="skeleton-card">
+        <div class="sk-line sk-badge"></div>
+        <div class="sk-line sk-title"></div>
+        <div class="sk-line sk-text"></div>
+        <div class="sk-line sk-text short"></div>
+      </div>
+      <div class="skeleton-card">
+        <div class="sk-line sk-badge"></div>
+        <div class="sk-line sk-title"></div>
+        <div class="sk-line sk-text"></div>
+        <div class="sk-line sk-text short"></div>
+      </div>
+    </section>
+
+    <!-- Контейнер карточек результатов -->
+    <main class="results-container" id="resultsContainer">
+      <div class="empty-state">
+        <div class="empty-icon">🛰️</div>
+        <h2>Введите объект исследования</h2>
+        <p>
+          Система параллельно просканирует поисковую выдачу, новостные сводки, соцсети, профили по никнейму, GitHub, Reddit, HackerNews и архив Wayback Machine.
+        </p>
+      </div>
+    </main>
+  </div>
+
+  <script src="app.js"></script>
+</body>
+</html>
