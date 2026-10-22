@@ -1,0 +1,16 @@
+services:
+  - type: web
+    name: osint-nexus-backend
+    runtime: docker
+    rootDir: backend
+    plan: free
+    healthCheckPath: /health
+    envVars:
+      - key: PORT
+        value: 8000
+      - key: CORS_ORIGINS
+        value: "*"
+      - key: BOT_TOKEN
+        sync: false
+      - key: WEBAPP_URL
+        sync: false
