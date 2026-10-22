@@ -4,11 +4,12 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
 class Settings(BaseSettings):
-    """Глобальные настройки бэкенда, бота, Gemini AI и CORS."""
+    """Глобальные настройки бэкенда, бота, Gemini AI, Groq AI и CORS."""
 
     BOT_TOKEN: str = ""
     WEBAPP_URL: str = "https://telegram.org"
     GEMINI_API_KEY: str = ""
+    GROQ_API_KEY: str = ""
     PORT: int = 8000
     CORS_ORIGINS: str = "*"
 
