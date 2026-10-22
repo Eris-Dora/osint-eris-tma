@@ -214,7 +214,16 @@
 
       cachedResults = data.results || [];
       updateTabCounts(data.counts || {});
-
+     const aiDossierCard = document.getElementById("aiDossierCard");
+      const aiDossierText = document.getElementById("aiDossierText");
+      if (aiDossierCard && aiDossierText) {
+        if (data.ai_summary) {
+          aiDossierText.textContent = data.ai_summary;
+          aiDossierCard.classList.remove("hidden");
+        } else {
+          aiDossierCard.classList.add("hidden");
+        }
+      }
       elapsedBadge.textContent = `${data.elapsed_seconds || 0}s`;
       elapsedBadge.classList.remove("hidden");
       statusMessage.textContent = `Найдено совпадений: ${cachedResults.length}`;
