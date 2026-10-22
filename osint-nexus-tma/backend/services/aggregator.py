@@ -4,17 +4,18 @@ from typing import Dict, Any, List
 from .dork_engine import DorkEngine
 from .open_sources import OpenSourcesEngine
 from .username_checker import UsernameChecker
+from .ai_analyst import GeminiOSINTAnalyst
 
 
 async def run_full_osint_search(query: str, category_filter: str = "all") -> Dict[str, Any]:
     """
     Выполняет параллельный сбор данных из всех бесплатных OSINT-источников,
-    удаляет дубликаты и возвращает структурированный JSON-ответ для Mini App.
+    обогащает выдачу через Gemini Google Search Grounding и строит ИИ-досье.
     """
     start_time = time.perf_counter()
     clean_query = query.strip()
 
-    # Параллельный запуск всех поисковых модулей
+    # 1. Параллельный запуск всех базовых поисковых модулей
     dork_task = DorkEngine.search_all_dorks(clean_query)
     open_sources_task = OpenSourcesEngine.search_all_open_sources(clean_query)
     username_task = UsernameChecker.check_username(clean_query)
@@ -23,8 +24,15 @@ async def run_full_osint_search(query: str, category_filter: str = "all") -> Dic
         dork_task, open_sources_task, username_task
     )
 
-    # Приоритет: сначала найденные профили, затем открытые API и дорки
-    raw_combined: List[Dict[str, Any]] = username_results + open_results + dork_results
+    preliminary_combined: List[Dict[str, Any]] = username_results + open_results + dork_results
+
+    # 2. Запуск ИИ-аналитика (живой поиск Google + генерация сводки по найденным данным)
+    ai_data = await GeminiOSINTAnalyst.analyze_and_ground(clean_query, preliminary_combined)
+    ai_summary: str = ai_data.get("ai_summary", "")
+    grounded_results: List[Dict[str, Any]] = ai_data.get("grounded_results", [])
+
+    # Объединяем ссылки от Google AI, профили соцсетей и остальные находки
+    raw_combined: List[Dict[str, Any]] = username_results + grounded_results + open_results + dork_results
 
     # Дедупликация по нормализованному URL
     seen_urls = set()
@@ -40,7 +48,6 @@ async def run_full_osint_search(query: str, category_filter: str = "all") -> Dic
         seen_urls.add(norm_url)
         unique_items.append(item)
 
-    # Подсчет количества результатов по каждой категории
     counts = {
         "all": len(unique_items),
         "mentions": sum(1 for i in unique_items if i.get("category") == "mentions"),
@@ -48,7 +55,6 @@ async def run_full_osint_search(query: str, category_filter: str = "all") -> Dic
         "forums": sum(1 for i in unique_items if i.get("category") == "forums"),
     }
 
-    # Фильтрация, если клиент запросил конкретную вкладку
     if category_filter and category_filter != "all":
         filtered_items = [i for i in unique_items if i.get("category") == category_filter]
     else:
@@ -59,6 +65,8 @@ async def run_full_osint_search(query: str, category_filter: str = "all") -> Dic
     return {
         "query": clean_query,
         "elapsed_seconds": elapsed_sec,
+        "ai_summary": ai_summary,
         "counts": counts,
         "results": filtered_items,
     }
+    
